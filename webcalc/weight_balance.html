@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Weight and Balance Calculator</title>
+</head>
+
+<body>
+
+<!-- h3 Weight and Balance Calculator /h3 -->
+
+<script language=javascript>//<!--
+
+function reset()
+{
+  option_list = document.getElementById("airplane");
+  option_list.selectedIndex = 0;
+  populate_table();
+}
+
+function clear_common_fields()
+{
+  document.getElementById("max_wt").innerHTML = "0";
+
+  document.getElementById("empty_arm").innerHTML = "--";
+  document.getElementById("oil_wt").value = 0;
+  document.getElementById("oil_mom").value = 0;
+  document.getElementById("fuel_vol").value = 0;
+  document.getElementById("fuel_rho").value = 6;
+  document.getElementById("rear_name").innerHTML = "Rear Seat";
+
+  document.getElementById("spc1_arm").value = 0;
+  document.getElementById("spc2_arm").value = 0;
+  document.getElementById("spc3_arm").value = 0;
+  document.getElementById("spc1_name").innerHTML = "Special 1";
+  document.getElementById("spc2_name").innerHTML = "Special 2";
+  document.getElementById("spc3_name").innerHTML = "Special 3";
+
+  document.getElementById("pilot_wt").value = 0;
+  document.getElementById("copilot_wt").value = 0;
+  document.getElementById("rear_wt").value = 0;
+  document.getElementById("bag_wt").value = 0;
+  document.getElementById("fuel_wt").innerHTML = "--";
+  document.getElementById("spc1_wt").value = 0;
+  document.getElementById("spc2_wt").value = 0;
+  document.getElementById("spc3_wt").value = 0;
+
+  document.getElementById("pilot_mom").innerHTML = "--";
+  document.getElementById("copilot_mom").innerHTML = "--";
+  document.getElementById("rear_mom").innerHTML = "--";
+  document.getElementById("bag_mom").innerHTML = "--";
+  document.getElementById("fuel_mom").innerHTML = "--";
+  document.getElementById("spc1_mom").innerHTML = "--";
+  document.getElementById("spc2_mom").innerHTML = "--";
+  document.getElementById("spc3_mom").innerHTML = "--";
+
+  document.getElementById("total_wt").innerHTML = "--";
+  document.getElementById("total_mom").innerHTML = "--";
+  document.getElementById("total_arm").innerHTML = "--";
+
+  document.getElementById("warn_weight").style.display = "none";
+  document.getElementById("warn_weight_ldg").style.display = "none";
+  document.getElementById("warn_envelope").style.display = "none";
+}
+
+function populate_table()   // C152  C172N  C172S  C182T
+{
+  clear_common_fields();
+
+  option_list = document.getElementById("airplane");
+  plane = option_list.options[option_list.selectedIndex].value;
+
+  document.getElementById("plane_type").innerHTML = plane;
+
+  units = 0;  // 1:US; 2:Metric
+
+  if (plane == "C152" || plane == "C152_2")
+  {
+    is_C152_2 = (plane == "C152_2");
+    units = 1;
+    document.getElementById("empty_wt").value  = (is_C152_2 ? 1133 : 1101);
+    document.getElementById("empty_mom").value = (is_C152_2 ? 34000 : 33000);
+    document.getElementById("pilot_arm").value = 39;
+    document.getElementById("copilot_arm").value = 39;
+    document.getElementById("rear_arm").value = 64;
+    document.getElementById("rear_name").innerHTML = "Chair Bag";
+    document.getElementById("bag_arm").value = 84;
+    document.getElementById("fuel_arm").value = 42;
+    document.getElementById("max_wt").innerHTML = 1670;
+    document.getElementById("max_wt_ldg").innerHTML = 1670;
+    document.getElementById("envelope_polygon").innerHTML = "31,0;31,1350;32.65,1670;36.5,1670;36.5,0";
+  }
+  else if (plane == "C172N" || plane == "C172S")
+  {
+    is_C172S = (plane == "C172S");
+    units = 1;
+    document.getElementById("empty_wt").value  = (is_C172S ? 1642 : 1454);
+    document.getElementById("empty_mom").value = (is_C172S ? 62600 : 57600);
+    document.getElementById("pilot_arm").value = 37;
+    document.getElementById("copilot_arm").value = 37;
+    document.getElementById("rear_arm").value = 73;
+    document.getElementById("bag_arm").value = 95;
+    document.getElementById("fuel_arm").value = 48;
+    document.getElementById("spc1_arm").value = 123;
+    document.getElementById("spc1_name").innerHTML = "Tail";
+
+    max_wt = (is_C172S ? "2550" : "2300");
+    min_arm_at_max_wt = (is_C172S ? "41" : "38.5");
+    document.getElementById("max_wt").innerHTML = max_wt;
+    document.getElementById("max_wt_ldg").innerHTML = max_wt;
+    document.getElementById("envelope_polygon").innerHTML = "35,0;35,1950;" + min_arm_at_max_wt + "," + max_wt + ";47.3," + max_wt + ";47.3,0";
+  }
+  else if (plane == "C182T")
+  {
+    units = 2;
+    document.getElementById("empty_wt").value  = 1924;
+    document.getElementById("empty_mom").value = 70900;
+    document.getElementById("pilot_arm").value = 37;
+    document.getElementById("copilot_arm").value = 37;
+    document.getElementById("rear_arm").value = 74;
+    document.getElementById("bag_arm").value = 97;
+    document.getElementById("fuel_arm").value = 46.5;
+    document.getElementById("spc1_arm").value = 116;
+    document.getElementById("spc1_name").innerHTML = "Bags 2";
+    document.getElementById("spc2_arm").value = 129;
+    document.getElementById("spc2_name").innerHTML = "Tail";
+    document.getElementById("max_wt").innerHTML = 3100;
+    document.getElementById("max_wt_ldg").innerHTML = 2950;
+    document.getElementById("envelope_polygon").innerHTML = "33,0;33,2225;35.75,2700;41,3100;46,3100;46,0";
+  }
+  else
+  {
+    document.getElementById("empty_wt").value  = 0;
+    document.getElementById("empty_mom").value = 0;
+    document.getElementById("pilot_arm").value = 0;
+    document.getElementById("copilot_arm").value = 0;
+    document.getElementById("rear_arm").value = 0;
+    document.getElementById("bag_arm").value = 0;
+    document.getElementById("fuel_arm").value = 0;
+  }
+
+  select_units(units);
+}
+
+function is_in_envelope(weight,arm,envelope)
+{
+  env_points = envelope.split(";");
+  npoints = env_points.length;
+  if (npoints < 2) return true;  // generalization
+
+  pnt0 = env_points[0].split(",");
+  for (idx=0; idx<npoints-1; idx++)
+  {
+    pnt1 = env_points[idx+1].split(",");
+    if ((pnt1[0]-pnt0[0])*(weight-pnt0[1]) > (pnt1[1]-pnt0[1])*(arm-pnt0[0])) return false;
+    pnt0 = pnt1;
+  }
+
+  return true;
+}
+
+function restrict(val,digs)
+{
+  if (val == 0) return 0;
+  v_shift = Math.pow(10, Math.floor(Math.log10(Math.abs(val))) - digs);
+  v_round = Math.round(val/v_shift);
+  if (v_shift > 3) return v_round * Math.round(v_shift);
+  if (v_shift < 0.3) return v_round / Math.round(1/v_shift);
+  return v_round;
+}
+
+function select_units(idx)  // 1:US; 2:Metric
+{
+  disp_us_str = (idx == 1 ? "inline" : "none");
+  disp_metric_str = (idx == 2 ? "inline" : "none");
+  disp_us_str_tab = (idx == 1 ? "table-row" : "none");
+  disp_metric_str_tab = (idx == 2 ? "table-row" : "none");
+  document.getElementById("fuel_units_us").style.display = disp_us_str;
+  document.getElementById("fuel_rho_units_us").style.display = disp_us_str;
+  document.getElementById("main_units_us").style.display = disp_us_str_tab;
+  document.getElementById("tab_units_us").style.display = disp_us_str_tab;
+  document.getElementById("fuel_units_metric").style.display = disp_metric_str;
+  document.getElementById("fuel_rho_units_metric").style.display = disp_metric_str;
+  document.getElementById("main_units_metric").style.display = disp_metric_str_tab;
+  document.getElementById("tab_units_metric").style.display = disp_metric_str_tab;
+}
+
+function fill_arm(where)
+{
+  arm = Number(document.getElementById("tab_arm").value);
+  document.getElementById(where).value = arm;
+}
+
+function fill_fuel_arm_rho()
+{
+  wt = Number(document.getElementById("tab_wt").value);
+  mom = Number(document.getElementById("tab_mom").value);
+  vol = Number(document.getElementById("tab_vol").value);
+  document.getElementById("fuel_rho").value = restrict(wt/vol, 2);
+  get_tab_arm();
+  fill_arm("fuel_arm");
+}
+
+function get_tab_wt()
+{
+  mom = Number(document.getElementById("tab_mom").value);
+  arm = Number(document.getElementById("tab_arm").value);
+  document.getElementById("tab_wt").value = restrict(mom/arm, 2);
+}
+
+function get_tab_mom()
+{
+  wt = Number(document.getElementById("tab_wt").value);
+  arm = Number(document.getElementById("tab_arm").value);
+  document.getElementById("tab_mom").value = restrict(wt*arm, 2);
+}
+
+function get_tab_arm()
+{
+  wt = Number(document.getElementById("tab_wt").value);
+  mom = Number(document.getElementById("tab_mom").value);
+  document.getElementById("tab_arm").value = restrict(mom/wt, 2);
+}
+
+function add_wt(wt)
+{
+  if (isNaN(wt)) wt = 0;
+  return wt;
+}
+
+function add_mom(wt, arm, log)
+{
+  mom_add = wt * arm;
+  if (isNaN(mom_add)) mom_add = 0;
+  document.getElementById(log).innerHTML = restrict(mom_add, 2);
+  return mom_add;
+}
+
+function compute_all()
+{
+  // empty
+
+  total_wt = Number(document.getElementById("empty_wt").value);
+  total_mom = Number(document.getElementById("empty_mom").value);
+  
+  empty_arm = total_mom / total_wt;
+  document.getElementById("empty_arm").innerHTML = restrict(empty_arm, 2);
+
+  // fuel
+
+  fuel_wt = Number(document.getElementById("fuel_vol").value) * Number(document.getElementById("fuel_rho").value);
+  document.getElementById("fuel_wt").innerHTML = restrict(fuel_wt, 2);
+  total_wt += add_wt(fuel_wt);
+  total_mom += add_mom(fuel_wt, Number(document.getElementById("fuel_arm").value), "fuel_mom");
+
+  // oil
+
+  total_wt += add_wt(Number(document.getElementById("oil_wt").value));
+  total_mom += add_wt(Number(document.getElementById("oil_mom").value));  // valid or 0
+
+  // rest of the list
+
+  wt = Number(document.getElementById("pilot_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("pilot_arm").value), "pilot_mom");
+
+  wt = Number(document.getElementById("copilot_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("copilot_arm").value), "copilot_mom");
+
+  wt = Number(document.getElementById("rear_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("rear_arm").value), "rear_mom");
+
+  wt = Number(document.getElementById("bag_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("bag_arm").value), "bag_mom");
+
+  wt = Number(document.getElementById("spc1_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("spc1_arm").value), "spc1_mom");
+
+  wt = Number(document.getElementById("spc2_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("spc2_arm").value), "spc2_mom");
+
+  wt = Number(document.getElementById("spc3_wt").value);
+  total_wt += add_wt(wt);
+  total_mom += add_mom(wt, Number(document.getElementById("spc3_arm").value), "spc3_mom");
+
+  // results
+
+  document.getElementById("total_wt").innerHTML = restrict(total_wt, 2);
+  document.getElementById("total_mom").innerHTML = restrict(total_mom, 2);
+
+  total_arm = total_mom / total_wt;
+  diff_arm = restrict(total_arm - empty_arm, 2);
+  document.getElementById("total_arm").innerHTML = restrict(total_arm, 2) + " (" + (diff_arm<0 ? "-" : "+") + Math.abs(diff_arm) + ")";
+
+  // envelope
+
+  max_wt = Number(document.getElementById("max_wt").innerHTML);
+
+  document.getElementById("warn_weight").style.display = "none";
+  document.getElementById("warn_weight_ldg").style.display = "none";
+  document.getElementById("warn_envelope").style.display = "none";
+
+  if (max_wt > 1)
+  {
+    if (total_wt > max_wt)
+    {
+      document.getElementById("warn_weight").style.display = "block";
+    }
+    else if (!is_in_envelope(total_wt,total_arm, document.getElementById("envelope_polygon").innerHTML))
+    {
+      document.getElementById("warn_envelope").style.display = "block";
+    }
+    else if (total_wt > Number(document.getElementById("max_wt_ldg").innerHTML))
+    {
+      document.getElementById("warn_weight_ldg").style.display = "block";
+    }
+  }
+}
+
+//-->
+</script>
+
+<table>
+<tr><td colspan=5><b style="font-size: 1.1em">Airplane (if known)</b></td></tr>
+<tr>
+<td colspan=5>
+<select id=airplane>
+  <option value=other selected>Unspecified, no units</option>
+  <option value=C152>Cessna 152, US units</option>
+  <option value=C152_2>Cessna 152 II, US units</option>
+  <option value=C172N>Cessna 172N, US units</option>
+  <option value=C172S>Cessna 172S, US units</option>
+  <option value=C182T>Cessna 182T, US units</option>
+</select>
+<button type=button onclick="populate_table()">Select</button>&nbsp;&nbsp;&nbsp;
+<button type=button onclick="reset()">Clear All</button></td>
+</tr>
+
+<tr><td colspan=5><hr style="border-top: 1px solid black"></td></tr>
+<tr><td colspan=5><b style="font-size: 1.1em">Conversions</b></td></tr>
+
+<tr>
+<td></td>
+<td>Weight</td>
+<td>Momentum</td>
+<td>Arm</td>
+</tr>
+
+<tr id=tab_units_us style="display: none">
+<td></td>
+<td>Lb</td>
+<td>Lb*In</td>
+<td>Inch</td>
+</tr>
+<tr id=tab_units_metric style="display: none">
+<td></td>
+<td>kg</td>
+<td>kg*cm</td>
+<td>cm</td>
+</tr>
+
+<tr>
+<td></td>
+<td><input id=tab_wt value=0 style="width: 7ch"></td>
+<td><input id=tab_mom value=0 style="width: 10ch"></td>
+<td colspan=2><input id=tab_arm value=0 style="width: 7ch"></td>
+</tr>
+
+<tr>
+<td></td>
+<td><button type=button onclick="get_tab_wt()">Calc</button></td>
+<td><button type=button onclick="get_tab_mom()">Calc</button></td>
+<td><button type=button onclick="get_tab_arm()">Calc</button></td>
+</tr>
+
+<tr><td colspan=5><hr style="border-top: 1px solid black"></td></tr>
+<tr><td colspan=5><b style="font-size: 1.1em">Fuel Volume Tabulation</b></td></tr>
+
+<tr><td colspan=5 style="padding-bottom: 1ex">
+<span style="font-size: smaller">Enter Weight, Momentum (above), and Volume (below),<br>
+that correspond to each other on the chart.</span></td></tr>
+
+<tr>
+<td></td>
+<td colspan=4>Volume: <input id=tab_vol value=0 style="width: 5ch"> <span id=tab_units_vol style="display: none">Gal</span></td>
+</tr>
+<tr>
+<td></td>
+<td colspan=4><button type=button onclick="fill_fuel_arm_rho()">Calculate Fuel Density and Fuel Tank Arm</button></td>
+</tr>
+
+<tr><td colspan=5><hr style="border-top: 1px solid black"></td></tr>
+
+<tr><td colspan=5><b style="font-size: 1.1em">Weight and Balance</b></td></tr>
+
+<tr><td colspan=5 style="padding-bottom: 1ex">
+<span style="font-size: smaller">(*) Copy button transfers the Arm value from<br>
+Conversion section above into the corresponding line.</span></td></tr>
+
+<tr>
+<td></td>
+<td>Weight</td>
+<td>Momentum</td>
+<td>Arm</td>
+<td>Copy<sup>*</sup></td>
+</tr>
+
+<tr id=main_units_us style="display: none">
+<td></td>
+<td>Lb</td>
+<td>Lb*In</td>
+<td>Inch</td>
+</tr>
+<tr id=main_units_metric style="display: none">
+<td></td>
+<td>kg</td>
+<td>kg*cm</td>
+<td>cm</td>
+</tr>
+
+
+<tr>
+<td>Empty</td>
+<td><input id=empty_wt value=0 style="width: 7ch"></td>
+<td><input id=empty_mom value=0 style="width: 10ch"></td>
+<td><span id=empty_arm>--</span></td>
+</tr>
+
+<tr>
+<td>Pilot</td>
+<td><input id=pilot_wt value=0 style="width: 5ch"></td>
+<td><span id=pilot_mom>--</span></td>
+<td><input id=pilot_arm value=0 style="width: 5ch"></td>
+<td><button type=button onclick="fill_arm('pilot_arm')">&nbsp;</button></td>
+</tr>
+
+<tr>
+<td>Co-pilot</td>
+<td><input id=copilot_wt value=0 style="width: 5ch"></td>
+<td><span id=copilot_mom>--</span></td>
+<td><input id=copilot_arm value=0 style="width: 5ch"</td>
+<td><button type=button onclick="fill_arm('copilot_arm')">&nbsp;</button></td>
+</tr>
+
+<tr>
+<td><span id=rear_name>Rear Seat</span></td>
+<td><input id=rear_wt value=0 style="width: 5ch"></td>
+<td><span id=rear_mom>--</span></td>
+<td><input id=rear_arm value=0 style="width: 5ch"</td>
+<td><button type=button onclick="fill_arm('rear_arm')">&nbsp;</button></td>
+</tr>
+
+<tr>
+<td>Baggage</td>
+<td><input id=bag_wt value=0 style="width: 5ch"></td>
+<td><span id=bag_mom>--</span></td>
+<td><input id=bag_arm value=0 style="width: 5ch"</td>
+<td><button type=button onclick="fill_arm('bag_arm')">&nbsp;</button></td>
+</tr>
+
+<tr><td style="padding-bottom: 1.5ex"></td></tr>
+
+<tr>
+<td colspan=5 style="border-style: dashed none dashed none; border-width: 1px; padding-bottom: 0.25ex; padding-left: 1em">
+<table>
+<tr>
+<td>Fuel, Volume:&nbsp;</td>
+<td><input id=fuel_vol value=0 style="width: 5ch">
+<span id=fuel_units_us style="display: none">Gal</span>
+<span id=fuel_units_metric style="display: none">L</span>
+</td>
+</tr>
+<tr>
+<td>Density:</td>
+<td><input id=fuel_rho value=6 style="width: 5ch">
+<span id=fuel_rho_units_us style="display: none">Lb/Gal</span>
+<span id=fuel_rho_units_metric style="display: none">kg/L</span>
+</td>
+</tr>
+</table>
+</td>
+<tr><td style="padding-bottom: 0.25ex"></td></tr>
+<tr>
+<td>Fuel Tanks&nbsp;&nbsp;</td>
+<td><span id=fuel_wt>--</span></td>
+<td><span id=fuel_mom>--</span></td>
+<td><input id=fuel_arm value=0 style="width: 5ch"</td>
+</tr>
+
+<tr><td style="padding-bottom: 1ex"></td></tr>
+
+<tr>
+<td><span id=spc1_name>Special 1</span></td>
+<td><input id=spc1_wt value=0 style="width: 5ch"></td>
+<td><span id=spc1_mom>--</span></td>
+<td><input id=spc1_arm value=0 style="width: 5ch"</td>
+<td><button type=button onclick="fill_arm('spc1_arm')">&nbsp;</button></td>
+</tr>
+
+<tr>
+<td><span id=spc2_name>Special 2</span></td>
+<td><input id=spc2_wt value=0 style="width: 5ch"></td>
+<td><span id=spc2_mom>--</span></td>
+<td><input id=spc2_arm value=0 style="width: 5ch"</td>
+<td><button type=button onclick="fill_arm('spc2_arm')">&nbsp;</button></td>
+</tr>
+
+<tr>
+<td><span id=spc3_name>Special 3</span></td>
+<td><input id=spc3_wt value=0 style="width: 5ch"></td>
+<td><span id=spc3_mom>--</span></td>
+<td><input id=spc3_arm value=0 style="width: 5ch"</td>
+<td><button type=button onclick="fill_arm('spc3_arm')">&nbsp;</button></td>
+</tr>
+
+<tr>
+<td>Oil</td>
+<td><input id=oil_wt value=0 style="width: 5ch"></td>
+<td><input id=oil_mom value=0 style="width: 5ch"></td>
+</tr>
+
+<tr>
+<td style="padding-top: 2ex; padding-bottom: 2ex"><button type=button onclick="compute_all()">Compute</button></td>
+</tr>
+
+<tr>
+<td>Totals:</td>
+<td><span id=total_wt>--</span></td>
+<td><span id=total_mom>--</span></td>
+<td colspan=2><span id=total_arm>--</span></td>
+</td>
+
+<tr>
+<td colspan=5>
+<p id=warn_weight style="display: none">AIRPLANE IS ABOVE MAXIMUM GROSS WEIGHT</p>   <!-- none or block -->
+<p id=warn_weight_ldg style="display: none">AIRPLANE IS ABOVE MAXIMUM <B>LANDING</B> WEIGHT<br>(Takeoff OK)</p>
+<p id=warn_envelope style="display: none">AIRPLANE BALANCE IS OUTSIDE ENVELOPE</p>
+</td>
+</tr>
+
+<tr><td colspan=5><hr style="border-top: 1px solid black"></td></tr>
+</table>
+
+
+<p style="font-size: smaller">(**) Copyright &copy; Oleg "Secoh" Alferov, Sep 2019<br>
+Distributed free of charge under terms of Apache 2.0 license as of Sep 2019 or most recent.<br>
+This calculator is believed to be accurate, but it is <b>not</b> certified or otherwise approved by FAA.<br>
+Pilots should exercise the good judgement at all times and not trust any specific single source of information.<br>
+The final authority and responsibility in making aeronautical decisions are on Pilot in Command.<br>
+If you find a bug in the program, please contact me at oalferov1 at gmail.com.
+</p>
+
+<p style="visibility: hidden">
+<span id=plane_type>--</span>
+<span id=max_wt>0</span>
+<span id=max_wt_ldg>0</span>
+<span id=envelope_polygon>0,0</span>
+</p>
+</body>
+</html>

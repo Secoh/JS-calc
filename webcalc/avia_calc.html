@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Aviation Troposphere Calculator</title>
+
+<style>
+td.dturn { padding-left: 0.75em; text-align: center; }
+</style>
+
+</head>
+
+<body>
+
+<!-- h3 Aviation Troposphere Calculator /h3 -->
+
+<script language=javascript>//<!--
+
+function getC(F) { return 5*(F-32)/9; }
+function getF(C) { return 9*C/5+32; }
+
+function getKTS(MPH) { return 0.868976*MPH; }
+function getMPH(KTS) { return 1.150780*KTS; }
+
+function getRadians(deg) { return Math.PI*deg/180; }
+function getDegrees(rad) { return 180*rad/Math.PI; }
+
+function RangeDegrees(deg) { return (deg>=0 ? deg%360 : 360-(-deg)%360); }
+
+function formatTime(hr_float)
+{
+  T_mn_all = Math.round(hr_float * 60);
+  T_hr = Math.floor(T_mn_all / 60);
+  T_mn = T_mn_all - T_hr*60;
+  return ("0"+String(T_hr)).slice(-2) + ":" + ("0"+String(T_mn)).slice(-2);
+}
+
+function compute_turn(v_true, bank_deg, v_sl_ratio, v_drift)  // returns: diameter, time_min, drift, v_equiv
+{
+  G = 68580;   // in NM/Hr^2 units, sea level, about US continental part
+
+  bank = getRadians(bank_deg);
+  accel = G * Math.tan(bank);
+
+  diam = 2 * v_true*v_true / accel;
+  t_half = Math.PI * v_true / accel;
+
+  return { diameter: diam, time_half: t_half*60, drift: v_drift*t_half,
+           v_sl_equiv: Math.sqrt(Math.cos(bank)) * v_true * v_sl_ratio,
+           load_factor: 1/Math.cos(bank) };
+}
+
+function BankDegStandardTurn(V_tas)
+{
+  G = 68580;   // see above
+  return getDegrees(Math.atan(60*Math.PI*V_tas/G));
+}
+
+function compute_all()
+{
+  T_lapserate = Number(0.001978);        // degrees C / foot std. lapse rate (mk org!)
+  D_lapserate = Number(0.0005);
+  T_D_dry_conv_rate = Number(0.0025);    // note, it is not just difference!
+
+  T_std       = Number(15);              // Aviation std. temperature, C
+  A_std       = Number(2992.13);         // Altimeter Setting for avia.std. conditions, inHg*100
+  Kelvin      = Number(273.15);          // Kelvins in 0 C degrees
+  exp_baro    = Number(0.234969);
+  sin_05_d    = Number(0.00872653);      // sin(0.5 degrees)
+
+// "0" is input, "1" is recalculated to new elevation
+// this calculator will NOT attempt to adjust wind spped or direction for different altitudes
+
+// aviation defaults are: all speeds in KTS, all temperatures in Celsius,
+// elevations in US feet, wind direction and course are true, heading is magnetic
+// altimeter setting is inches of Hg
+// (unless there is specific need to use other units)
+
+  E0 = Number(document.getElementById("rept_elevation").value);
+  A  = Number(document.getElementById("rept_altimeter_setting").value);
+
+  is_Centigrade = document.getElementById("set_centigrade").checked;
+  T0 = Number(document.getElementById("rept_temperature").value);
+  if (!is_Centigrade) T0 = getC(T0);
+  D0 = Number(document.getElementById("rept_dewpoint").value);
+  if (!is_Centigrade) D0 = getC(D0);
+
+  beta = getRadians(Number(document.getElementById("beta_magnetic").value));
+
+  wind_V = Number(document.getElementById("wind_v").value);
+  if (!document.getElementById("set_wind_kts").checked) wind_V = getKTS(wind_V);
+  wind_A = getRadians(Number(document.getElementById("wind_from").value));
+  if (!document.getElementById("wind_from_true").checked) wind_A = wind_A + beta;
+  wind_gust_V = (document.getElementById("gust_enable").checked ? Number(document.getElementById("wind_gust_v").value) : wind_V);
+  if (!document.getElementById("set_wind_kts").checked) wind_gust_V = getKTS(wind_gust_V);
+
+  E1 = Number(document.getElementById("eval_altitude").value);
+  if (document.getElementById("set_eval_relative").checked) E1 = E0 + E1;
+
+  V_ias = Number(document.getElementById("v_ias").value);
+
+  course_A = getRadians(Number(document.getElementById("v_course").value));
+  if (!document.getElementById("set_course_true").checked) course_A = course_A + beta;
+
+// current elevation, tempertature, to density, density altitude
+
+  document.getElementById("true_altitude_result").innerHTML = 100*Math.round(E1/100);
+
+  PA_corr = 145442.2 * (1 - Math.pow(A/A_std, 0.190261));
+  PA1 = E1 + PA_corr;
+
+  document.getElementById("pa_result").innerHTML = 100*Math.round(PA1/100);
+
+  K0          = T0 + Kelvin;
+  K1          = K0 - (E1-E0) * T_lapserate;
+
+  K_std       = T_std + Kelvin;
+  K_std_at_E1 = K_std - PA1 * T_lapserate;
+
+  K_ratio = K_std_at_E1 / T_lapserate;
+  DA1 = PA1 + K_ratio * (1 - Math.pow(K_std_at_E1/K1, exp_baro));
+
+  document.getElementById("da_result").innerHTML = 100*Math.round(DA1/100);
+
+  document.getElementById("tempc_result").innerHTML = Math.round(K1-Kelvin);
+  document.getElementById("tempf_result").innerHTML = Math.round(getF(K1-Kelvin));
+
+// freezing
+
+  ZZ = T0 / T_lapserate + E0;
+  Z1 = 100*Math.round((ZZ-E1)/100);
+
+  document.getElementById("freeze_msl_result").innerHTML = 100*Math.round(ZZ/100);
+  document.getElementById("freeze_agl_result").innerHTML = Z1;
+  document.getElementById("freeze_above").innerHTML = (Z1>0 ? "above" : "relative to");
+
+// backward conversion to sea level, get density
+
+  // Temperature ratio, current conditions recalculated to sea level VS. standard, in K/K
+  K1_ratio_sea_level = 1 - DA1 * T_lapserate / K_std;
+  V_ratio = Math.pow(K1_ratio_sea_level, 0.5/exp_baro);   // Square root of Density Ratio, for airspeeds
+
+  V_true_at_DA = V_ias / V_ratio;
+
+  document.getElementById("tas_result").innerHTML = Math.round(V_true_at_DA);
+
+// humidity
+
+  document.getElementById("dew_report").style.display = (document.getElementById("rept_dewpoint").disabled ? "none" : "inline");
+
+  dew_level_0 = E0 + (T0-D0)/T_D_dry_conv_rate;
+  if (dew_level_0 < E0) dew_level_0 = E0;
+  dew_level_1 = dew_level_0 - E1;
+  if (dew_level_1 < 0) dew_level_1 = 0;
+
+  document.getElementById("condens_msl_result").innerHTML = 100*Math.round(dew_level_0/100);
+  document.getElementById("condens_agl_result").innerHTML = 100*Math.round(dew_level_1/100);
+
+  D1 = D0 - (E1-E0) * D_lapserate;
+  RH = compute_humidity(D1+Kelvin, K1);
+
+  document.getElementById("rel_humid_result").innerHTML = Math.round(RH);
+
+// cross-country elements
+
+  course_A_off_wind = course_A - wind_A;
+  wsin = wind_V * Math.sin(course_A_off_wind);
+  wcos = wind_V * Math.cos(course_A_off_wind);
+
+  RR = V_true_at_DA * V_true_at_DA - wsin * wsin;
+  Vgs = (RR<0 ? -1 : Math.sqrt(RR) - wcos);
+
+  if (Vgs<0)
+  {
+    document.getElementById("dest_unreachable").style.display = "inline";
+    document.getElementById("destination").style.display = "none";
+
+    // hidden
+    document.getElementById("vgs_result").innerHTML = (RR<0 ? "NaN" : String(Math.round(Vgs)));
+    document.getElementById("time_result_str").innerHTML = "UNREACHABLE";
+    document.getElementById("v_head_mag_result").innerHTML = "--";
+    document.getElementById("v_crab_abs_result").innerHTML = "--";
+    document.getElementById("v_crab_where").innerHTML = "--";
+  }
+  else
+  {
+    document.getElementById("dest_unreachable").style.display = "none";
+    document.getElementById("destination").style.display = "inline";
+
+    compute_travel_time();
+
+    head_A_corr = -Math.asin(wsin/V_true_at_DA);  // valid because of RR test
+    head_A = course_A - beta + head_A_corr;
+
+    head_A_deg = RangeDegrees(Math.round(getDegrees(head_A)));
+
+    document.getElementById("vgs_result").innerHTML = Math.round(Vgs);
+    document.getElementById("v_head_mag_result").innerHTML = ("00"+String(head_A_deg)).slice(-3);
+
+    head_A_icorr_deg = Math.round(getDegrees(head_A_corr));
+    if (head_A_icorr_deg != 0)
+    {
+      document.getElementById("v_crab_abs_result").innerHTML = Math.abs(head_A_icorr_deg);
+      document.getElementById("v_crab_where").innerHTML = (head_A_icorr_deg > 0 ? "Right" : "Left");
+      document.getElementById("do_crab").style.display = "inline";
+      document.getElementById("no_crab").style.display = "none";
+    }
+    else
+    {
+      document.getElementById("do_crab").style.display = "none";
+      document.getElementById("no_crab").style.display = "inline";
+    }
+  }
+
+// crosswinds
+
+  wind_course_abs = Math.round(Math.abs(wcos));
+  document.getElementById("wind_course_where").innerHTML = (wcos < 0 ? "Tailwind" : "Headwind");
+  document.getElementById("wind_course_component_abs").innerHTML = wind_course_abs;
+
+  xwind_abs = Math.round(Math.abs(wsin));
+  document.getElementById("xwind_component_abs").innerHTML = xwind_abs;
+  document.getElementById("xwind_present").style.display = (xwind_abs > 0 ? "inline" : "none");
+  document.getElementById("xwind_where").innerHTML = (wsin > 0 ? "Left" : "Right");
+
+  xwind_sl_abs = Math.round(Math.abs(wsin*V_ratio));
+  document.getElementById("xwind_component_abs_sea_level").innerHTML = xwind_sl_abs;
+
+  wind_gust_course_abs = Math.round(Math.abs(wind_gust_V * Math.cos(course_A_off_wind)));
+  wsin_gust = wind_gust_V * Math.sin(course_A_off_wind);
+  xwind_gust_abs = Math.round(Math.abs(wsin_gust));
+  xwind_gust_sl_abs = Math.round(Math.abs(wsin_gust*V_ratio));
+
+  document.getElementById("wind_course_have_gust").style.display = (wind_gust_course_abs > wind_course_abs ? "inline" : "none");
+  document.getElementById("wind_gust_course_component_abs").innerHTML = wind_gust_course_abs;
+
+  document.getElementById("xwind_have_gust").style.display = (xwind_gust_abs > xwind_abs ? "inline" : "none");
+  document.getElementById("xwind_gust_component_abs").innerHTML = xwind_gust_abs;
+  document.getElementById("xwind_have_gust_sea_level").style.display = (xwind_gust_sl_abs > xwind_sl_abs ? "inline" : "none");
+  document.getElementById("xwind_gust_component_abs_sea_level").innerHTML = xwind_gust_sl_abs;
+
+// course rose
+
+  base_A = course_A;
+  if (document.getElementById("set_course_true").checked)
+  {
+    document.getElementById("course_rose_scale").innerHTML = "True";
+  }
+  else
+  {
+    base_A = base_A - beta;
+    document.getElementById("course_rose_scale").innerHTML = "Mag";
+  }
+
+  document.getElementById("course_rose_backward").innerHTML = RangeDegrees(Math.round(getDegrees(base_A)) + 180);
+  document.getElementById("course_rose_left").innerHTML = RangeDegrees(Math.round(getDegrees(base_A)) - 90);
+  document.getElementById("course_rose_right").innerHTML = RangeDegrees(Math.round(getDegrees(base_A)) + 90);
+
+
+// turns
+
+  turn30 = compute_turn(V_true_at_DA, 30, V_ratio, wind_V);
+  document.getElementById("turn30_time_result").innerHTML = Math.round(10*turn30.time_half)/10;
+  document.getElementById("turn30_diam_result").innerHTML = Math.round(10*turn30.diameter)/10;
+  document.getElementById("veqv30_result").innerHTML = Math.round(turn30.v_sl_equiv);
+  document.getElementById("turn30_drift_result").innerHTML = Math.round(10*turn30.drift)/10;
+  document.getElementById("turn30_load_result").innerHTML = Math.round(100*turn30.load_factor)/100;
+
+  bank_std_deg = BankDegStandardTurn(V_true_at_DA);
+  turn_std = compute_turn(V_true_at_DA, bank_std_deg, V_ratio, wind_V);
+  document.getElementById("turn_std_bank_result").innerHTML = Math.round(bank_std_deg);
+  document.getElementById("turn_std_diam_result").innerHTML = Math.round(10*turn_std.diameter)/10;
+  document.getElementById("veqv_std_result").innerHTML = Math.round(turn_std.v_sl_equiv);
+  document.getElementById("turn_std_drift_result").innerHTML = Math.round(10*turn_std.drift)/10;
+  document.getElementById("turn_std_load_result").innerHTML = Math.round(100*turn_std.load_factor)/100;
+
+  compute_bank();
+
+  document.getElementById("button_dist").disabled = false;
+  document.getElementById("button_bank").disabled = false;
+}
+
+function toggle_dewpoint()
+{
+  document.getElementById("rept_dewpoint").disabled = !document.getElementById("dew_enable").checked;
+}
+
+function toggle_gust()
+{
+  document.getElementById("wind_gust_v").disabled = !document.getElementById("gust_enable").checked;
+}
+
+function compute_humidity(Kd,K)
+{
+  aa = 17.62;
+  bb = 243.12;
+  RH = Math.round(100 * Math.exp(aa*Kd/(bb+Kd) - aa*K/(bb+K)));
+  if (RH > 100) RH = 100;
+  return RH;
+}
+
+function compute_bank()
+{
+  bank_deg = Number(document.getElementById("try_bank_angle").value);
+  turn = compute_turn(V_true_at_DA, bank_deg, V_ratio, wind_V);
+  document.getElementById("turn_time_result").innerHTML = Math.round(10*turn.time_half)/10;
+  document.getElementById("turn_diam_result").innerHTML = Math.round(10*turn.diameter)/10;
+  document.getElementById("veqv_result").innerHTML = Math.round(turn.v_sl_equiv);
+  document.getElementById("turn_drift_result").innerHTML = Math.round(10*turn.drift)/10;
+  document.getElementById("turn_load_result").innerHTML = Math.round(100*turn.load_factor)/100;
+}
+
+function compute_travel_time()
+{
+  one_SM = 0.868976;  // in NM
+
+  L = Number(document.getElementById("travel_distance").value);
+  if (!document.getElementById("dist_scale_nm").checked) L = L * one_SM;
+  TimeDest = L / Vgs;
+
+  document.getElementById("time_result_str").innerHTML = formatTime(TimeDest);
+}
+
+//-->
+</script>
+
+<table>
+<tr><td colspan=3><b style="font-size: 1.1em">Reported Data</b></td></tr>
+<tr><td colspan=3 style="padding-bottom: .5ex"><hr style="border-top: 1px solid black"></td></tr>
+
+<tr>
+<td>Elevation or MSL:&nbsp;</td>
+<td><input id=rept_elevation value=0 style="width: 5ch"></td>
+<td>&nbsp;Feet</td>
+</tr>
+<tr>
+<td>Temperature:&nbsp;</td>
+<td><input id=rept_temperature value=15 style="width: 5ch"></td>
+<td><input type=radio name=tscale checked id=set_centigrade>C&deg;&nbsp;&nbsp;<input type=radio name=tscale>F&deg;</td>
+</tr>
+<td><input type=checkbox id=dew_enable onclick="toggle_dewpoint()">&nbsp;Dew Point:&nbsp;</td>
+<td><input id=rept_dewpoint value=0 disabled style="width: 5ch"></td>
+</tr>
+
+<tr>
+<td style="vertical-align: baseline">Altimeter Setting:&nbsp;</td>
+<td style="vertical-align: baseline"><input id=rept_altimeter_setting value=2992 style="width: 5ch"></td>
+<td style="vertical-align: baseline; padding-bottom: 0.5ex">&nbsp;Inches Hg *100<BR>&nbsp;(4 digits, no dot)</td>
+</tr>
+<tr>
+<td>Wind From:<sup>*</sup>&nbsp;</td>
+<td><input id=wind_from value=0 style="width: 4ch">&deg;</td>
+<td><input type=radio name=wind_from_scale checked id=wind_from_true>True&nbsp;&nbsp;<input type=radio name=wind_from_scale>Mag</td>
+</tr>
+<tr>
+<td>Wind Speed:&nbsp;</td>
+<td><input id=wind_v value=0 style="width: 5ch"></td>
+<td><input type=radio name=wind_units checked id=set_wind_kts>KTS&nbsp;&nbsp;<input type=radio name=wind_units>MPH</td>
+</tr>
+<td style="vertical-align: baseline"><input type=checkbox id=gust_enable onclick="toggle_gust()">&nbsp;Wind Gust:&nbsp;</td>
+<td style="vertical-align: baseline; padding-bottom: 1ex"><input id=wind_gust_v value=0 disabled style="width: 5ch"></td>
+</tr>
+
+<tr>
+<td>Mag. Variation:&nbsp;</td>
+<td><input id=beta_magnetic value=0 style="width: 4ch">&deg;</td>
+<td>&nbsp;(westerly is "+")</td>
+</tr>
+
+<tr><td colspan=3 style="padding-top: 2ex"><b style="font-size: 1.1em">Evaluate</b></td></tr>
+<tr><td colspan=3 style="padding-bottom: .5ex"><hr style="border-top: 1px solid black"></td></tr>
+
+<tr>
+<td colspan=3 style="padding-bottom: 1ex">At:&nbsp;<input id=eval_altitude value=0 style="width: 5ch">&nbsp;Feet&nbsp;
+<input type=radio name=eval_alt_where checked id=set_eval_relative>Above Reported&nbsp;<input type=radio name=eval_alt_where>MSL</td>
+</tr>
+
+<tr>
+<td>Indicated Airspeed:&nbsp;</td>
+<td><input id=v_ias value=100 style="width: 5ch"></td>
+<td>&nbsp;KTS</td>
+</tr>
+<tr>
+<td>Course:&nbsp;</td>
+<td><input id=v_course value=0 style="width: 4ch">&deg;</td>
+<td><input type=radio name=course_scale checked id=set_course_true>True&nbsp;&nbsp;<input type=radio name=course_scale>Mag</td>
+</tr>
+
+<tr>
+<td colspan=3 style="padding-top: 2ex"><button type=button onclick="compute_all()">Compute</button></td>
+</tr>
+<tr><td colspan=3><hr style="border-top: 1px solid black"></td></tr>
+</table>
+
+<!-- Calculation results are posted into these fields -->
+
+<p>
+<b style="font-size: 1.1em">Results</b>
+</p>
+
+<p>
+Test (Evaluated) True Altitude is <span id=true_altitude_result>...</span> feet.<br>
+All results are at or relative to the Test Altitude.
+</p>
+
+<p>
+Pressure Altitude is <span id=pa_result>...</span> feet
+</p>
+
+<p>
+Density Altitude is <span id=da_result>...</span> feet
+</p>
+
+<p>
+Temperature is <span id=tempc_result>...</span>&deg;C (<span id=tempf_result>...</span>&deg;F)
+</p>
+
+<p id=dew_report style="display: inline">
+Condensation Level is <span id=condens_msl_result>...</span> feet MSL, or<br>
+<span id=condens_agl_result>...</span> feet above Test Altitude<br>
+Relative Humidity is <span id=rel_humid_result>...</span>%
+</p>
+
+<p>
+Freezing Level is <span id=freeze_msl_result>...</span> feet MSL, or<br>
+<span id=freeze_agl_result>...</span> feet <span id=freeze_above>above</span> Test Altitude
+</p>
+
+<p>
+True Airspeed is <span id=tas_result>...</span> kts
+</p>
+
+<div id=dest_unreachable style="display: none">
+<p>Destination is UNREACHABLE</p>
+</div>
+<div id=destination style="display: inline">
+<p>
+Ground Speed is <span id=vgs_result>...</span> kts
+</p>
+<p>
+Distance: <input id=travel_distance value=10 style="width: 5ch">
+<input type=radio name=dist_scale checked id=dist_scale_nm>NM
+<input type=radio name=dist_scale>SM<br>
+<button type=button id=button_dist onclick="compute_travel_time()" disabled>Eval</button>
+&nbsp;Time on course is <span id=time_result_str>...</span> hours:min
+</p>
+<p>
+Required Heading is <span id=v_head_mag_result>...</span><br>
+<span id=do_crab style="display: inline">
+Crab <span id=v_crab_abs_result>...</span>&deg; to the <span id=v_crab_where>...</span>
+</span>
+<span id=no_crab style="display: none">No Crab</span>
+</p>
+</div>
+
+<p>
+<!-- headwind or tailwind -->
+<span id=wind_course_where>...</span> component is <span id=wind_course_component_abs>...</span>
+kts<span id=wind_course_have_gust style="display: none">, gust <span id=wind_gust_course_component_abs>...</span>
+kts</span>
+</p>
+
+<p>
+X-Wind component is <span id=xwind_component_abs>...</span>
+kts<span id=xwind_have_gust style="display: none">, gust <span id=xwind_gust_component_abs>...</span> kts,</span>
+<span id=xwind_present style="display: inline">from the <span id=xwind_where>...</span></span><br>
+V<sub>XWind|SL</sub> = <span id=xwind_component_abs_sea_level>...</span>
+kts<span id=xwind_have_gust_sea_level style="display: none">,
+gust <span id=xwind_gust_component_abs_sea_level>...</span> kts</span>
+</p>
+
+<p>
+Course Reversal: <span id=course_rose_backward>...</span>&deg; <span id=course_rose_scale>...</span><br>
+Abeam Left: <span id=course_rose_left>...</span>&deg;, Right: <span id=course_rose_right>...</span>&deg;
+</p>
+
+<table>
+<tr><td colspan=5><b style="font-size: 1.1em">U-Turns</b></td></tr>
+<tr><td colspan=5 style="padding-bottom: .5ex"><hr style="border-top: 1px solid black"></td></tr>
+
+<tr>
+<td>Bank Angle:</td>
+<td class=dturn>30&deg;</td>
+<td class=dturn><span id=turn_std_bank_result>...</span>&deg;</td>
+<td class=dturn><input id=try_bank_angle value=45 style="width: 3ch">&deg;</td>
+<td><button type=button id=button_bank onclick="compute_bank()" disabled>Eval</button></td>
+</tr>
+
+<tr>
+<td>Time:</td>
+<td class=dturn><span id=turn30_time_result>...</span></td>
+<td class=dturn>1<sup>**</sup></td>
+<td class=dturn><span id=turn_time_result>...</span></td>
+<td>&nbsp;min</td>
+</tr>
+
+<tr>
+<td>Diameter:</td>
+<td class=dturn><span id=turn30_diam_result>...</span></td>
+<td class=dturn><span id=turn_std_diam_result>...</span></td>
+<td class=dturn><span id=turn_diam_result>...</span></td>
+<td>&nbsp;NM</td>
+</tr>
+
+<tr>
+<td>Load Factor:</td>
+<td class=dturn><span id=turn30_load_result></td>
+<td class=dturn><span id=turn_std_load_result></td>
+<td class=dturn><span id=turn_load_result></td>
+</tr>
+
+<tr>
+<td>V<sub>IAS|AOA</sub></td>
+<td class=dturn><span id=veqv30_result>...</span></td>
+<td class=dturn><span id=veqv_std_result>...</span></td>
+<td class=dturn><span id=veqv_result>...</span></td>
+<td>&nbsp;KTS</td>
+</tr>
+
+<tr>
+<td>Drift:</td>
+<td class=dturn><span id=turn30_drift_result>...</span></td>
+<td class=dturn><span id=turn_std_drift_result>...</span></td>
+<td class=dturn><span id=turn_drift_result>...</span></td>
+<td>&nbsp;NM</td>
+</tr>
+
+<tr><td colspan=5 style="padding-top: .5ex"><hr style="border-top: 1px solid black"></td></tr>
+</table>
+
+
+<p style="font-size: smaller">(*a) This calculator does not attempt to adjust wind speed or direction with altitude.<br>
+If you are evaluating cross-country speeds and headings at altitude, use Winds Aloft report instead of METAR.<br>
+Winds at ground level may differ significantly from winds aloft.<br>
+<!-- span style="visibility: hidden" -->(*b)<!-- /span --> This calculator uses standard ISA atmosphere model
+and doesn't take humidity into account.
+
+<p style="font-size: smaller">(**) 1-minute U-turn is also known as <b>Standard Rate Turn.</b>
+</p>
+
+<p style="font-size: smaller">(*3) V<sub>XWind|SL</sub> is hypothetic crosswind speed at standard conditions
+at sea level that imposes<br>
+the same side load on airplane as the given wind at the given altitude and other current conditions.<br>
+<span style="visibility: hidden">(*3) </span>V<sub>IAS|AOA</sub> is hypothetic indicated airspeed
+of unaccelerated flight in standard conditions at sea level<br>
+that requires the same Angle of Attack as the accelerated flight in the given circumstances.<br>
+<b>If this speed is below stalling speed, the airplane cannot fly in that conditions.</b>
+</p>
+
+<p style="font-size: smaller">(*4) Copyright &copy; Oleg "Secoh" Alferov, Sep 2019<br>
+Distributed free of charge under terms of Apache 2.0 license as of Sep 2019 or most recent.<br>
+This calculator is believed to be accurate, but it is <b>not</b> certified or otherwise approved by FAA.<br>
+Pilots should exercise the good judgement at all times and not trust any specific single source of information.<br>
+The final authority and responsibility in making aeronautical decisions are on Pilot in Command.<br>
+If you find a bug in the program, please contact me at oalferov1 at gmail.com.
+</p>
+
+</body>
+</html>
+
