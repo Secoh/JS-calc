@@ -15,4 +15,4 @@ Standard Weight and Balance problem for airplanes. Pre-programmed typical W&B fi
 
 Given the geographic coordinates for the vantage point and the destination, calculate true and magnetic azimuth, and distance between points.
 (Inclination is given manually.)
-
+Multiple formats for latitude/longitude are supported via regular expression patterns.
