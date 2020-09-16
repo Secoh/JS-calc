@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Azimuth and Distance Calculator</title>
+</head>
+
+<body>
+
+<!-- h3 Azimuth and Distance Calculator /h3 -->
+
+<script language=javascript>//<!--
+
+function getRadians(deg) { return Math.PI*deg/180; }
+function getDegrees(rad) { return 180*rad/Math.PI; }
+
+function RangeDegrees(deg) { return (deg>=0 ? deg%360 : 360-(-deg)%360); }
+
+function array_2_lat_or_long(stra)
+{
+  d = Number(stra[0]);
+  m = Number(stra[1]);
+  s = Number(stra[2]);
+
+  if (isNaN(d)) d = m = s = 0;
+  if (isNaN(m)) m = s = 0;
+  if (isNaN(s)) s = 0;
+
+  return d + m/60.0 + s/3600.0;
+}
+
+function read_lat_long(str)
+{
+  str = str.toUpperCase();
+
+  var nepref = /[NS]\s*(([0-9]+[^0-9NSWE\.]+|)[0-9]+[^0-9NSWE\.]+|)([0-9]+(|\.[0-9]*)|\.[0-9]+)[^0-9NSWE\.]*[WE]\s*(([0-9]+[^0-9NSWE\.]+|)[0-9]+[^0-9NSWE\.]+|)([0-9]+(|\.[0-9]*)|\.[0-9]+)($|[^0-9NSWE\.])/i;
+  var nepost = /(^|[^0-9NSWE\.])(([0-9]+[^0-9NSWE\.]+|)[0-9]+[^0-9NSWE\.]+|)([0-9]+(|\.[0-9]*)|\.[0-9]+)[^0-9NSWE\.]*[NS][^0-9NSWE\.]*(([0-9]+[^0-9NSWE\.]+|)[0-9]+[^0-9NSWE\.]+|)([0-9]+(|\.[0-9]*)|\.[0-9]+)[^0-9NSWE\.]*[WE]/i;
+  var decimal = /(|\-|\+)([0-9]+(|\.[0-9]*)|\.[0-9]+)[^0-9\.\-\+]+(|\-|\+)([0-9]+(|\.[0-9]*)|\.[0-9]+)($|[^0-9\.])/i;
+
+  var elem_pref = /[NSWE]\s*(([0-9]+[^0-9NSWE\.]+|)[0-9]+[^0-9NSWE\.]+|)([0-9]+(|\.[0-9]*)|\.[0-9]+)($|[^0-9NSWE\.])/g;
+  var elem_post = /(^|[^0-9NSWE\.])(([0-9]+[^0-9NSWE\.]+|)[0-9]+[^0-9NSWE\.]+|)([0-9]+(|\.[0-9]*)|\.[0-9]+)[^0-9NSWE\.]*[NSWE]/g;
+
+  var elem_number = /[0-9\.\-]+/g;
+
+  if (nepref.test(str))  // read formats: N 12d 34m 56.7", W 12d 34' 56.7; or S 12 34.567m, W 12d 34.567'; or N 12.34567, E 123; (S for Seconds may NOT be used)
+  {
+    str = str.match(nepref)[0];
+    elems = str.match(elem_pref);
+
+    N_mul = (elems[0][0] == "N" ? 1 : -1);
+    E_mul = (elems[1][0] == "E" ? 1 : -1);
+
+    return { raw: false,
+             latitude:  N_mul * array_2_lat_or_long(elems[0].match(elem_number)),
+             longitude: E_mul * array_2_lat_or_long(elems[1].match(elem_number)) };
+  }
+
+  if (nepost.test(str))  // read formats: 12d 34m 56.7" N, 12d 34' 56.7W; or 12 34.567mS, 12d 34.567' w; or 12.34567N, 123 E; (S for Seconds may NOT be used)
+  {
+    str = str.match(nepost)[0];
+    elems = str.match(elem_post);
+
+    N_mul = (elems[0].slice(-1) == "N" ? 1 : -1);
+    E_mul = (elems[1].slice(-1) == "E" ? 1 : -1);
+
+    return { raw: false,
+             latitude:  N_mul * array_2_lat_or_long(elems[0].match(elem_number)),
+             longitude: E_mul * array_2_lat_or_long(elems[1].match(elem_number)) };
+  }
+
+  if (decimal.test(str))  // read format [-+]12.34567 [-+]12.34567
+  {
+    str = str.match(decimal)[0];
+    elems = str.match(elem_number);
+
+    return { raw: true,
+             latitude:  Number(elems[0]),
+             longitude: Number(elems[1]) };
+  }
+
+  return { raw: false, latitude: NaN, longitude: NaN };
+}
+
+function format_latlong(raw, dms, lat, long)
+{
+  if (isNaN(lat) || isNaN(long)) return "";
+
+  if (raw)
+  {
+    return Math.round(lat*1000000)/1000000 + ", " + Math.round(long*1000000)/1000000;
+  }
+  else
+  {
+    L_neg = (lat < 0);
+    lat = Math.abs(lat);
+    L_deg = Math.floor(lat);
+    L_min = (lat - L_deg) * 60;
+
+    W_neg = (long < 0);
+    long = Math.abs(long);
+    W_deg = Math.floor(long);
+    W_min = (long - W_deg) * 60;
+
+    L_adds = "";
+    W_adds = "";
+    if (dms)
+    {
+      L_min1 = L_min;
+      W_min1 = W_min;
+      L_min = Math.floor(L_min);
+      W_min = Math.floor(W_min);
+
+      L_sec = Math.round((L_min1 - L_min) * 600000) / 10000;
+      W_sec = Math.round((W_min1 - W_min) * 600000) / 10000;
+      LmSZ = (L_sec < 10 ? "0" : "");
+      WmSZ = (W_sec < 10 ? "0" : "");
+
+      L_adds = LmSZ + L_sec + "\"";
+      W_adds = WmSZ + W_sec + "\"";
+    }
+    else
+    {
+      L_min = Math.round((lat - L_deg) * 600000) / 10000;
+      W_min = Math.round((long - W_deg) * 600000) / 10000;
+    }
+
+    LmZ = (L_min < 10 ? "0" : "");
+    WmZ = (W_min < 10 ? "0" : "");
+
+    return (L_neg ? "S" : "N") + L_deg + "&deg;" + LmZ + L_min + "'" + L_adds + " / " +
+           (W_neg ? "W" : "E") + W_deg + "&deg;" + WmZ + W_min + "'" + W_adds;
+  }
+}
+
+function get_vector(lat_deg, long_deg)
+{
+  lat_rad  = getRadians(lat_deg);
+  long_rad = getRadians(long_deg);
+  rr = Math.cos(lat_rad);
+  return { X: rr*Math.cos(long_rad), Y: rr*Math.sin(long_rad), Z: Math.sin(lat_rad) };
+}
+
+function vector_product(A, B)
+{
+  return { X: A.Y*B.Z - A.Z*B.Y,
+           Y: A.Z*B.X - A.X*B.Z,
+           Z: A.X*B.Y - A.Y*B.X };
+}
+
+function scalar_product(A, B)
+{
+  return A.X*B.X + A.Y*B.Y + A.Z*B.Z;
+}
+
+function vector_abs(A)
+{
+  return Math.sqrt(scalar_product(A,A));
+}
+
+function compute_all()
+{
+  R_Earth = Number(6371008.8);   // in Meters
+  one_NM  = Number(1851.852);    // 1 NM is 1 Minute of Equator
+  one_SM  = Number(1609.34);     // US land mile
+
+  orig = document.getElementById("origin").value;
+  dest = document.getElementById("destination").value;
+
+  orig_ne = read_lat_long(orig);
+  dest_ne = read_lat_long(dest);
+
+  document.getElementById("orig_dd_rept").innerHTML = format_latlong(true, false, orig_ne.latitude, orig_ne.longitude);
+  document.getElementById("dest_dd_rept").innerHTML = format_latlong(true, false, dest_ne.latitude, dest_ne.longitude);
+  document.getElementById("orig_ddm_rept").innerHTML = format_latlong(false, false, orig_ne.latitude, orig_ne.longitude);
+  document.getElementById("dest_ddm_rept").innerHTML = format_latlong(false, false, dest_ne.latitude, dest_ne.longitude);
+  document.getElementById("orig_dms_rept").innerHTML = format_latlong(false, true, orig_ne.latitude, orig_ne.longitude);
+  document.getElementById("dest_dms_rept").innerHTML = format_latlong(false, true, dest_ne.latitude, dest_ne.longitude);
+
+  pt_A = get_vector(orig_ne.latitude, orig_ne.longitude);
+  pt_B = get_vector(dest_ne.latitude, dest_ne.longitude);
+  pt_N = { X:0, Y:0, Z:1 };
+
+  orth_ab = vector_product(pt_A, pt_B);
+  orth_an = vector_product(pt_A, pt_N);
+
+  orth_ab_abs = vector_abs(orth_ab);
+  orth_an_abs = vector_abs(orth_an);
+
+  // reject if start at the pole, start and stop coincide, or oppose
+
+  if (orth_ab_abs*R_Earth < 1 || orth_an_abs*R_Earth < 1)  // with 1 meter tolerance
+  {
+    document.getElementById("az_invalid").style.display = "inline";
+    document.getElementById("az_normal").style.display = "none";
+    document.getElementById("azimuth").innerHTML = "--";
+  }
+  else
+  {
+    document.getElementById("az_invalid").style.display = "none";
+    document.getElementById("az_normal").style.display = "inline";
+
+    az = getDegrees( Math.acos(scalar_product(orth_ab, orth_an) / (orth_ab_abs*orth_an_abs)) );
+    if (scalar_product(pt_A, vector_product(orth_ab, orth_an)) < 0) az = -az;
+
+    az_t_deg = RangeDegrees(Math.round(az));
+    document.getElementById("azimuth").innerHTML = az_t_deg;
+    document.getElementById("azimuth_rev").innerHTML = RangeDegrees(az_t_deg + 180);
+
+    upd_magnetic();
+
+    document.getElementById("beta_eval").disabled = false;
+  }
+
+  // distance
+
+  dist_m = R_Earth * Math.acos(scalar_product(pt_A, pt_B));
+
+  document.getElementById("dist_nm").innerHTML = Math.round(dist_m/one_NM);
+  document.getElementById("dist_sm").innerHTML = Math.round(dist_m/one_SM);
+  document.getElementById("dist_km").innerHTML = Math.round(dist_m/1000);
+}
+
+function upd_magnetic()
+{
+  beta = Number(document.getElementById("beta").value);
+  document.getElementById("azimuth_mag").innerHTML = RangeDegrees(Math.round(az_t_deg - beta));;
+  document.getElementById("azimuth_mag_rev").innerHTML = RangeDegrees(Math.round(az_t_deg - beta + 180));;
+}
+
+function swap_coordinates()
+{
+  orig = document.getElementById("origin").value;
+  dest = document.getElementById("destination").value;
+
+  document.getElementById("origin").value = dest;
+  document.getElementById("destination").value = orig;
+}
+
+//-->
+</script>
+
+<table>
+<tr><td colspan=2><b style="font-size: 1.1em">Latitude and Longitude</b></td></tr>
+<tr><td colspan=2 style="padding-bottom: .5ex"><hr style="border-top: 1px solid black"></td></tr>
+
+<tr>
+<td>Origin:&nbsp;</td>
+<td><input id=origin value="0, 0" style="width: 30ch"></td>
+</tr>
+
+<tr>
+<td>Destination:&nbsp;</td>
+<td><input id=destination value="0, 0" style="width: 30ch"></td>
+</tr>
+
+<tr>
+<td style="padding-top: 2ex"><button type=button onclick="compute_all()">Compute</button></td>
+<td style="vertical-align: top; text-align: right"><button type=button onclick="swap_coordinates()">Swap</button></td>
+</tr>
+<tr><td colspan=2><hr style="border-top: 1px solid black"></td></tr>
+</table>
+
+<!-- Calculation results are posted into these fields -->
+
+<p>
+<b style="font-size: 1.1em">Results</b>
+</p>
+
+<div id=az_invalid style="display: none">
+<p>Azimuth is INVALID</p>
+</div>
+<div id=az_normal>
+<table>
+<tr>
+<td></td><td style="padding-right: 2em">Azimuth</td><td>Reversed&nbsp;&nbsp;&nbsp;</td>
+</tr>
+<tr>
+<td>True:</td><td><span id=azimuth>...</span>&deg;</td><td><span id=azimuth_rev>...</span>&deg;</td>
+</tr>
+<tr>
+<td style="padding-right: 2em">Magnetic:</td><td><span id=azimuth_mag>...</span>&deg;</td><td><span id=azimuth_mag_rev>...</span>&deg;</td>
+</tr>
+<tr>
+<td>Variation:</td>
+<td colspan=2><input id=beta value="0" style="width: 3ch">&deg;&nbsp;<button type=button onclick="upd_magnetic()" id=beta_eval disabled>Eval</button></td>
+</tr>
+</table>
+</div>
+
+<p>
+Distance is <span id=dist_nm>...</span> nm<br>
+<span style="visibility: hidden">Distance is </span><span id=dist_sm>...</span> sm<br>
+<span style="visibility: hidden">Distance is </span><span id=dist_km>...</span> km
+</p>
+
+<b style="font-size: 1.1em">Alternative formats</b>
+
+<table>
+<tr>
+<td>Origin</td>
+<td style="padding-right: 1em"></td>
+<td>Destination</td>
+</tr>
+<tr>
+<td><span id=orig_dd_rept>...</span></td>
+<td></td>
+<td><span id=dest_dd_rept>...</span></td>
+</tr>
+<tr>
+<td><span id=orig_ddm_rept>...</span></td>
+<td></td>
+<td><span id=dest_ddm_rept>...</span></td>
+</tr>
+<tr>
+<td><span id=orig_dms_rept>...</span></td>
+<td></td>
+<td><span id=dest_dms_rept>...</span></td>
+</tr>
+</table>
+
+
+<p style="font-size: smaller; padding-top: 1.5ex">(*) Copyright &copy; Oleg "Secoh" Alferov, Sep 2019<br>
+Distributed free of charge under terms of Apache 2.0 license as of Sep 2019 or most recent.<br>
+Supported geographical coordinates formats: N39.275 W120.70967; N39&deg;16.50 W120&deg;42.58;<br>
+N39&deg;16'30.00" W120&deg;42'34.80"; versions with cardinal points in suffix; and 39.275,-120.70967.<br>
+Spaces and non-significant signs are ignored. Southern and eastern hemishpheres are supported.<br>
+This calculator approximates the Earth surface by a sphere. Computations are believed<br>
+to be accurate, but they are <b>not</b> certified or otherwise approved by any agency.<br>
+The end user shall exercise the good judgement and is always responsible for his/her planning.<br>
+If you find a bug in the program, please contact me at oalferov1 at gmail.com.
+</p>
+
+</body>
+</html>
+
